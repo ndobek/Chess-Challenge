@@ -5,14 +5,14 @@ using System; //Debug Only
 //using System.Collections.Generic;
 //using System.Linq;
 
-public class MyBot : IChessBot
+public class MyBot_V1 : IChessBot
 {
-
+   
     public ByteBoard controlMap = new ByteBoard();
     public ByteBoard whiteControlMap = new ByteBoard();
     public ByteBoard blackControlMap = new ByteBoard();
 
-    int[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0 };
+    int[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0};
     int[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
 
 
@@ -29,7 +29,7 @@ public class MyBot : IChessBot
     {
         Move[] moves = board.GetLegalMoves();
         Move result = moves[0];
-        score = board.IsWhiteToMove ? int.MinValue : int.MaxValue;
+        score = board.IsWhiteToMove? int.MinValue: int.MaxValue;
 
         foreach (Move move in moves)
         {
@@ -43,7 +43,7 @@ public class MyBot : IChessBot
 
             board.UndoMove(move);
             if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) continue;
-            if ((board.IsWhiteToMove && moveScore > score) || (!board.IsWhiteToMove && moveScore < score)) { score = moveScore; result = move; }
+            if ((board.IsWhiteToMove && moveScore > score) || (!board.IsWhiteToMove && moveScore< score)){ score = moveScore; result = move; }
 
 
             //Console.WriteLine($"MoveScore: {moveScore,4} Score: {score,4} Move: {move,5} Result: {result,5}");
@@ -115,7 +115,7 @@ public class MyBot : IChessBot
         public void AddBitBoard(ulong bitBoard, int value = 1)
         {
             LoopBoard((int i, int j) => {
-                byteBoard[i, j] += BitboardHelper.SquareIsSet(bitBoard, new Square(i, j)) ? value : 0;
+                byteBoard[i, j] += BitboardHelper.SquareIsSet(bitBoard, new Square(i, j)) ? value :  0;
             });
         }
 
@@ -134,8 +134,8 @@ public class MyBot : IChessBot
         public static ByteBoard operator +(ByteBoard left, ByteBoard right)
         {
             ByteBoard result = new ByteBoard();
-            LoopBoard((int i, int j) => {
-                result.byteBoard[i, j] = (left.byteBoard[i, j] + right.byteBoard[i, j]);
+            LoopBoard((int i, int j) => { 
+                result.byteBoard[i, j] =  (left.byteBoard[i, j] + right.byteBoard[i, j]);
             });
             return result;
         }
@@ -145,14 +145,14 @@ public class MyBot : IChessBot
         //}
         public int SquareSign(Square square)
         {
-            return Math.Clamp(byteBoard[square.File, square.Rank], -1, 1);
+            return Math.Clamp( byteBoard[square.File, square.Rank], -1, 1);
         }
 
         public ulong MapOfControlledSquares()
         {
             ulong result = 0;
-            LoopBoard((int i, int j) => {
-                if (byteBoard[i, j] != 0) BitboardHelper.SetSquare(ref result, new Square(i, j));
+            LoopBoard((int i, int j) => { 
+                if (byteBoard[i, j] != 0) BitboardHelper.SetSquare(ref result, new Square(i, j)); 
             });
             return result;
         }
@@ -172,7 +172,7 @@ public class MyBot : IChessBot
         board.UndoMove(move);
     }
 
-    public static void LoopBoard(Action<int, int> action)
+    public static void LoopBoard(Action<int,int> action)
     {
         for (int i = 0; i < 8; i++)
         {
