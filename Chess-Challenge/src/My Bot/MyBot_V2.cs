@@ -5,29 +5,28 @@ using System; //Debug Only
 //using System.Collections.Generic;
 //using System.Linq;
 
-public class MyBot : IChessBot
+public class MyBot_V2 : IChessBot
 {
 
     public ByteBoard controlMap = new ByteBoard();
     public ByteBoard whiteControlMap = new ByteBoard();
     public ByteBoard blackControlMap = new ByteBoard();
 
-    float[] materialValues = { 0, 30, 90, 90, 150, 270, 0 };
-    float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0 };
-    float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
-    float pawnRankMod = 2;
+    int[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0 };
+    int[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
+    int pawnRankMod = 2;
 
 
     public Move Think(Board board, Timer timer)
     {
         BuildControlMap(board);
         //DEBUG_DisplayControlMaps(board);
-        return FullSearch(board, 0, out float score, timer);
+        return FindHighestValueMove(board, 2, out int score);
     }
 
     #region Search 
 
-    public Move FullSearch(Board board, int turnsAhead, out float score, Timer timer)
+    public Move FindHighestValueMove(Board board, int turnsAhead, out int score)
     {
         Move[] moves = board.GetLegalMoves();
         Move result = moves[0];
@@ -35,31 +34,29 @@ public class MyBot : IChessBot
 
         foreach (Move move in moves)
         {
-            if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) continue;
-
             board.MakeMove(move);
 
-            float moveScore;
+            int moveScore;
             if (board.IsInCheckmate()) { moveScore = board.IsWhiteToMove ? int.MinValue : int.MaxValue; }//Swapped because move will be undone.
             else if (board.IsDraw()) moveScore = 0;
-            else if (turnsAhead > 0) { FullSearch(board, turnsAhead - 1, out moveScore, timer); }
+            else if (turnsAhead > 0) { FindHighestValueMove(board, turnsAhead - 1, out moveScore); }
             else moveScore = EvaluatePosition(board);
 
             board.UndoMove(move);
-
+            if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) continue;
             if ((board.IsWhiteToMove && moveScore > score) || (!board.IsWhiteToMove && moveScore < score)) { score = moveScore; result = move; }
+
 
             //Console.WriteLine($"MoveScore: {moveScore,4} Score: {score,4} Move: {move,5} Result: {result,5}");
         }
         return result;
     }
 
-
     #endregion
 
     #region Evaluate
 
-    public float EvaluatePosition(Board board)
+    public int EvaluatePosition(Board board)
     {
         BuildControlMap(board);
         return GetControlScore(board);
@@ -86,12 +83,13 @@ public class MyBot : IChessBot
         controlMap = whiteControlMap + blackControlMap;
     }
 
-    public float GetControlScore(Board board)
+    public int GetControlScore(Board board)
     {
-        float result = 0;
+        int result = 0;
         LoopBoard((int i, int j) => {
             Piece piece = board.GetPiece(new Square(i, j));
             ByteBoard enemyControlMap = piece.IsWhite ? blackControlMap : whiteControlMap;
+            result += pieceControlValues[(int)piece.PieceType] * (piece.IsWhite ? 1 : -1);
             if (enemyControlMap.GetSquareValue(piece.Square) != 0) result += pieceControlValues[(int)piece.PieceType] * controlMap.SquareSign(piece.Square);
             result += (emptyControlValues[i] + emptyControlValues[j]) * controlMap.SquareSign(piece.Square);
 
@@ -99,22 +97,13 @@ public class MyBot : IChessBot
             {
                 if (piece.IsWhite) result += piece.Square.Rank * pawnRankMod;
                 else result -= (9 - piece.Square.Rank) * pawnRankMod;
+
             }
         });
 
-        result += GetMaterialScore(board);
         return result;
     }
 
-    public float GetMaterialScore(Board board)
-    {
-        float result = 0;
-        foreach(PieceList piece in board.GetAllPieceLists())
-        {
-            result += piece.Count * materialValues[(int)piece.TypeOfPieceInList] * (piece.IsWhitePieceList ? 1 : -1);
-        }
-        return result;
-    }
 
 
     #endregion
@@ -174,6 +163,15 @@ public class MyBot : IChessBot
     #endregion
 
     #region Helper Functions
+
+    public static void Move(Move move, Board board)
+    {
+        board.MakeMove(move);
+    }
+    public static void UndoMove(Move move, Board board)
+    {
+        board.UndoMove(move);
+    }
 
     public static void LoopBoard(Action<int, int> action)
     {

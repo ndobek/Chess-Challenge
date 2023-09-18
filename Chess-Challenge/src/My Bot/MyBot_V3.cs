@@ -5,18 +5,17 @@ using System; //Debug Only
 //using System.Collections.Generic;
 //using System.Linq;
 
-public class MyBot : IChessBot
+public class MyBot_V3 : IChessBot
 {
 
     public ByteBoard controlMap = new ByteBoard();
     public ByteBoard whiteControlMap = new ByteBoard();
     public ByteBoard blackControlMap = new ByteBoard();
 
-    float[] materialValues = { 0, 30, 90, 90, 150, 270, 0 };
     float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0 };
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
     float pawnRankMod = 2;
-
+    float actualMaterialMod = 3;
 
     public Move Think(Board board, Timer timer)
     {
@@ -109,9 +108,9 @@ public class MyBot : IChessBot
     public float GetMaterialScore(Board board)
     {
         float result = 0;
-        foreach(PieceList piece in board.GetAllPieceLists())
+        foreach (PieceList piece in board.GetAllPieceLists())
         {
-            result += piece.Count * materialValues[(int)piece.TypeOfPieceInList] * (piece.IsWhitePieceList ? 1 : -1);
+            result += piece.Count * pieceControlValues[(int)piece.TypeOfPieceInList] * (piece.IsWhitePieceList ? 1 : -1) * actualMaterialMod;
         }
         return result;
     }
