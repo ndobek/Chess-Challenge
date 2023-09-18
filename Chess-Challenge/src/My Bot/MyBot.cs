@@ -2,7 +2,7 @@
 using ChessChallenge.API;
 using System; //Debug Only
 //using System.Numerics;
-//using System.Collections.Generic;
+using System.Collections.Generic;
 //using System.Linq;
 
 public class MyBot : IChessBot
@@ -16,6 +16,7 @@ public class MyBot : IChessBot
     float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0, 0 };
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
     float pawnRankMod = 2;
+    int maxSearchWidth;
 
 
     public Move Think(Board board, Timer timer)
@@ -51,6 +52,49 @@ public class MyBot : IChessBot
             //Console.WriteLine($"MoveScore: {moveScore,4} Score: {score,4} Move: {move,5} Result: {result,5}");
         }
         return result;
+    }
+
+
+
+    public Move MoveSort(Board board, int turnsAhead, out float score, Timer timer)
+    {
+        Dictionary<Move, float> moveValues = new Dictionary<Move, float>();
+        Move[] moves = board.GetLegalMoves();
+        List<Move> result = new List<Move>();
+        score = board.IsWhiteToMove ? int.MinValue : int.MaxValue;
+
+        foreach (Move move in moves)
+        {
+            if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) continue;
+
+            board.MakeMove(move);
+
+            float moveScore;
+            if (board.IsInCheckmate()) { moveScore = board.IsWhiteToMove ? int.MinValue : int.MaxValue; }//Swapped because move will be undone.
+            else if (board.IsDraw()) moveScore = 0;
+            else moveScore = EvaluatePosition(board);
+
+            board.UndoMove(move);
+
+            moveValues.Add(move, moveScore);
+
+
+            bool placed = false;
+            for (int i = 0; i < result.Count; i++)
+            {
+                if (moveValues[result[i]] <= moveValues[move]) { result.Insert(i, move); placed = true; break; }
+            }
+            if (!placed) result.Add(move);
+
+        }
+
+        for(int i = 0; i < maxSearchWidth; i++)
+        {
+
+        }
+
+
+            return result[0];
     }
 
 
