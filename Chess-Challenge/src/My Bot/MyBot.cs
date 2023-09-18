@@ -21,7 +21,7 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer)
     {
         //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 3, 3, out float notUsed, timer, timer.MillisecondsRemaining / 40);
+        return MoveSort(board, 50, 0, out float notUsed, timer, timer.MillisecondsRemaining / 40);
     }
 
     #region Search 
@@ -55,14 +55,25 @@ public class MyBot : IChessBot
         {
             if (turnTime - timer.MillisecondsElapsedThisTurn <= 0) checkedMoves.Clear();
             Move highestValueMove = moves[0];
-            foreach (Move move in moves)
+            foreach (Move move in moveValues.Keys)
             {
                 if (!checkedMoves.Contains(move) && moveValues[move] > moveValues[highestValueMove]) highestValueMove = move;
             }
-            if (turnTime - timer.MillisecondsElapsedThisTurn <= 0) return highestValueMove;
-                board.MakeMove(highestValueMove);
+            if (turnTime - timer.MillisecondsElapsedThisTurn <= 0) {
+                {
+                    if (turnsAhead % 2 != 0) return MoveSort(board, turnsAhead - 1, maxSearchWidth, out float notUsed, timer, 0);
+                    else return highestValueMove;
+                }
+            }
+
+            
+            
+            board.MakeMove(highestValueMove);
             float moveScore;
-            MoveSort(board, turnsAhead - 1, maxSearchWidth, out moveScore, timer, turnTime);
+            if (board.IsInCheckmate()) { moveScore = board.IsWhiteToMove ? int.MinValue : int.MaxValue; }//Swapped because move will be undone.
+            else if (board.IsDraw()) moveScore = 0;
+            else MoveSort(board, turnsAhead - 1, maxSearchWidth, out moveScore, timer, turnTime);
+
             moveValues[highestValueMove] = moveScore;
             board.UndoMove(highestValueMove);
             checkedMoves.Add(highestValueMove);
