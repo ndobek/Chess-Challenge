@@ -12,15 +12,14 @@ public class MyBot : IChessBot
     public ByteBoard whiteControlMap = new ByteBoard();
     public ByteBoard blackControlMap = new ByteBoard();
 
-    float[] materialValues = { 0, 30, 90, 90, 150, 270, 0 };
-    float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0 };
+    float[] materialValues = { 10, 30, 90, 90, 150, 270, 0 };
+    float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0, 0 };
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
     float pawnRankMod = 2;
 
 
     public Move Think(Board board, Timer timer)
     {
-        BuildControlMap(board);
         //DEBUG_DisplayControlMaps(board);
         return FullSearch(board, 0, out float score, timer);
     }
@@ -61,7 +60,7 @@ public class MyBot : IChessBot
 
     public float EvaluatePosition(Board board)
     {
-        BuildControlMap(board);
+
         return GetControlScore(board);
     }
 
@@ -75,8 +74,8 @@ public class MyBot : IChessBot
         {
             foreach (Piece piece in list)
             {
-                if (list.IsWhitePieceList) whiteControlMap.AddBitBoard(GetPieceControlBitBoard(piece, board));
-                else blackControlMap.AddBitBoard(GetPieceControlBitBoard(piece, board), -1);
+                if (list.IsWhitePieceList) whiteControlMap.AddBitBoard((BitboardHelper.GetPieceAttacks(piece.PieceType, piece.Square, board, piece.IsWhite)));
+                else blackControlMap.AddBitBoard(BitboardHelper.GetPieceAttacks(piece.PieceType, piece.Square, board, piece.IsWhite), -1);
             }
         }
 
@@ -88,11 +87,21 @@ public class MyBot : IChessBot
 
     public float GetControlScore(Board board)
     {
+        BuildControlMap(board);
         float result = 0;
+        ulong kingBitBoard = BitboardHelper.GetKingAttacks(board.GetKingSquare(!board.IsWhiteToMove));
+        ByteBoard playerToMoveControlMap = board.IsWhiteToMove ? whiteControlMap : blackControlMap;
+
         LoopBoard((int i, int j) => {
             Piece piece = board.GetPiece(new Square(i, j));
             ByteBoard enemyControlMap = piece.IsWhite ? blackControlMap : whiteControlMap;
             if (enemyControlMap.GetSquareValue(piece.Square) != 0) result += pieceControlValues[(int)piece.PieceType] * controlMap.SquareSign(piece.Square);
+
+           if(BitboardHelper.SquareIsSet(kingBitBoard,piece.Square) && playerToMoveControlMap.GetSquareValue(piece.Square) != 0)
+            {
+                result += pieceControlValues[7] * (board.IsWhiteToMove ? 1 : -1);
+            }
+
             result += (emptyControlValues[i] + emptyControlValues[j]) * controlMap.SquareSign(piece.Square);
 
             if (piece.IsPawn)
@@ -186,20 +195,8 @@ public class MyBot : IChessBot
         }
     }
 
-    public static ulong GetPieceControlBitBoard(Piece piece, Board board)
-    {
-        switch (piece.PieceType)
-        {
-            case PieceType.Pawn: return BitboardHelper.GetPawnAttacks(piece.Square, piece.IsWhite);
-            case PieceType.Knight: return BitboardHelper.GetKnightAttacks(piece.Square);
-            case PieceType.Bishop:
-            case PieceType.Rook:
-            case PieceType.Queen: return BitboardHelper.GetSliderAttacks(piece.PieceType, piece.Square, board);
-            case PieceType.King: return BitboardHelper.GetKingAttacks(piece.Square);
-            default: return default;
-        }
-    }
 
+  
     #endregion
 
     #region Debug
