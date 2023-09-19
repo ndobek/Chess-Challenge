@@ -19,17 +19,27 @@ public class MyBot : IChessBot
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
     float pawnRankMod = 2;
 
+    bool playerWhite;
+    Timer _timer;
+    int turnTime;
+
 
     public Move Think(Board board, Timer timer)
     {
+        playerWhite = board.IsWhiteToMove;
+        _timer = timer;
+        turnTime = timer.MillisecondsRemaining / 40;
+
         //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 7, 3, out float notUsed, timer, timer.MillisecondsRemaining / 40);
+        //Console.WriteLine(timer.MillisecondsRemaining);
+
+        return MoveSort(board, 3, 3, out float notUsed);
     }
 
     #region Search 
 
 
-    public Move MoveSort(Board board, int turnsAhead, int maxSearchWidth, out float score, Timer timer, int turnTime)
+    public Move MoveSort(Board board, int turnsAhead, int maxSearchWidth, out float score)
     {
         Dictionary<Move, float> moveValues = new Dictionary<Move, float>();
         Move[] moves = board.GetLegalMoves();
@@ -41,23 +51,30 @@ public class MyBot : IChessBot
             moveValues.Add(move, EvaluateMove(move, board));
         }
 
-        List<Move> checkedMoves = new List<Move>();
-        checkedMoves.Add(Move.NullMove);
+        List<Move> checkedMoves = new List<Move>
+        {
+            Move.NullMove
+        };
 
         if (turnsAhead > 0)
         {
             for (int i = 0; i < maxSearchWidth; i++)
             {
                 Move moveToCheck = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
+
                 board.MakeMove(moveToCheck);
+
                 float newScore;
-                MoveSort(board, turnsAhead - 1, maxSearchWidth, out newScore, timer, turnTime);
+                MoveSort(board, turnsAhead - 1, maxSearchWidth, out newScore);
                 moveValues[moveToCheck] = newScore;
+
                 board.UndoMove(moveToCheck);
             }
 
-            checkedMoves.Clear();
-            checkedMoves.Add(Move.NullMove);
+            checkedMoves = new List<Move>
+            { 
+                Move.NullMove
+            };
         }
           
         Move result = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
@@ -231,6 +248,11 @@ public class MyBot : IChessBot
             }
         }
         return highestValueUncheckedMove;
+    }
+
+    public bool OutOfTime(float percentageOfTurn = 1)
+    {
+        return (turnTime * percentageOfTurn) - _timer.MillisecondsElapsedThisTurn < 0;
     }
 
     #endregion
