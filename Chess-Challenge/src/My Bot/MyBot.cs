@@ -7,11 +7,13 @@ using System.Collections.Generic;
 
 public class MyBot : IChessBot
 {
-
+    //Control Maps
     public ByteBoard controlMap = new ByteBoard();
     public ByteBoard whiteControlMap = new ByteBoard();
     public ByteBoard blackControlMap = new ByteBoard();
 
+
+    //Values given to various board conditions
     float[] materialValues = { 10, 30, 90, 90, 150, 270, 0 };
     float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0, 0 };
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
@@ -21,7 +23,7 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer)
     {
         //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 50, 0, out float notUsed, timer, timer.MillisecondsRemaining / 40);
+        return MoveSort(board, 3, 3, out float notUsed, timer, timer.MillisecondsRemaining / 40);
     }
 
     #region Search 
@@ -31,59 +33,34 @@ public class MyBot : IChessBot
     {
         Dictionary<Move, float> moveValues = new Dictionary<Move, float>();
         Move[] moves = board.GetLegalMoves();
-        score = board.IsWhiteToMove ? int.MinValue : int.MaxValue;
+        moveValues.Add(Move.NullMove, board.IsWhiteToMove ? int.MinValue : int.MaxValue);
 
+        //Get Initial Value for each move
         foreach (Move move in moves)
         {
-            if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) continue;
-
-            board.MakeMove(move);
-
-            float moveScore;
-            if (board.IsInCheckmate()) { moveScore = board.IsWhiteToMove ? int.MinValue : int.MaxValue; }//Swapped because move will be undone.
-            else if (board.IsDraw()) moveScore = 0;
-            else moveScore = EvaluatePosition(board);
-
-            board.UndoMove(move);
-
-            moveValues.Add(move, moveScore);
+            moveValues.Add(move, EvaluateMove(move, board));
         }
-
 
         List<Move> checkedMoves = new List<Move>();
-        for (int i = 0; i < maxSearchWidth; i++)
+        checkedMoves.Add(Move.NullMove);
+
+        if (turnsAhead > 0)
         {
-            if (turnTime - timer.MillisecondsElapsedThisTurn <= 0) checkedMoves.Clear();
-            Move highestValueMove = moves[0];
-            foreach (Move move in moveValues.Keys)
+            for (int i = 0; i < maxSearchWidth; i++)
             {
-                if (!checkedMoves.Contains(move) && moveValues[move] > moveValues[highestValueMove]) highestValueMove = move;
-            }
-            if (turnTime - timer.MillisecondsElapsedThisTurn <= 0) {
-                {
-                    if (turnsAhead % 2 != 0) return MoveSort(board, turnsAhead - 1, maxSearchWidth, out float notUsed, timer, 0);
-                    else return highestValueMove;
-                }
+                Move moveToCheck = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
+                board.MakeMove(moveToCheck);
+                MoveSort(board, turnsAhead - 1, maxSearchWidth, out score, timer, turnTime);
+                board.UndoMove(moveToCheck);
             }
 
-            
-            
-            board.MakeMove(highestValueMove);
-            float moveScore;
-            if (board.IsInCheckmate()) { moveScore = board.IsWhiteToMove ? int.MinValue : int.MaxValue; }//Swapped because move will be undone.
-            else if (board.IsDraw()) moveScore = 0;
-            else MoveSort(board, turnsAhead - 1, maxSearchWidth, out moveScore, timer, turnTime);
-
-            moveValues[highestValueMove] = moveScore;
-            board.UndoMove(highestValueMove);
-            checkedMoves.Add(highestValueMove);
-            if (checkedMoves.Count >= moves.Length) break;
+            checkedMoves.Clear();
+            checkedMoves.Add(Move.NullMove);
         }
-
-
-
-
-        return moves[0];//Code should never reach this
+          
+        Move result = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
+        score = moveValues[result];
+        return result;
     }
 
 
@@ -91,10 +68,19 @@ public class MyBot : IChessBot
 
     #region Evaluate
 
-    public float EvaluatePosition(Board board)
+    public float EvaluateMove(Move move, Board board)
     {
+        board.MakeMove(move);
 
-        return GetControlScore(board);
+        float moveScore;
+        if (board.IsInCheckmate()) { moveScore = board.IsWhiteToMove ? int.MinValue : int.MaxValue; }//Swapped because move will be undone.
+        else if (board.IsDraw()) moveScore = 0;
+        else if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) moveScore = board.IsWhiteToMove ? int.MaxValue : int.MinValue;
+        else moveScore = GetControlScore(board);
+
+        board.UndoMove(move);
+
+        return moveScore;
     }
 
     public void BuildControlMap(Board board)
@@ -227,7 +213,23 @@ public class MyBot : IChessBot
             }
         }
     }
-
+    public static Move HighestValueUncheckedMove(ref Dictionary<Move, float> moveValues, ref List<Move> checkedMoves, Board board)
+    {
+        Move highestValueUncheckedMove = Move.NullMove;
+        if (checkedMoves.Count< moveValues.Keys.Count)
+        {
+            foreach (Move move in moveValues.Keys)
+            {
+                if (!checkedMoves.Contains(move) &&
+                    (board.IsWhiteToMove && moveValues[move] >= moveValues[highestValueUncheckedMove]) ||
+                    (!board.IsWhiteToMove && moveValues[move] <= moveValues[highestValueUncheckedMove]))
+                {
+                    highestValueUncheckedMove = move;
+                }
+            }
+        }
+        return highestValueUncheckedMove;
+    }
 
     #endregion
 
