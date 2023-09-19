@@ -5,7 +5,7 @@ using System; //Debug Only
 using System.Collections.Generic;
 //using System.Linq;
 
-public class MyBot : IChessBot
+public class MyBot_V4 : IChessBot
 {
     //Control Maps
     public ByteBoard controlMap = new ByteBoard();
@@ -23,7 +23,7 @@ public class MyBot : IChessBot
     public Move Think(Board board, Timer timer)
     {
         //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 7, 3, out float notUsed, timer, timer.MillisecondsRemaining / 40);
+        return MoveSort(board, 3, 3, out float notUsed, timer, timer.MillisecondsRemaining / 40);
     }
 
     #region Search 
