@@ -5,7 +5,7 @@ using System; //Debug Only
 using System.Collections.Generic;
 //using System.Linq;
 
-public class MyBot : IChessBot
+public class MyBot_V5 : IChessBot
 {
     //Control Maps
     public static ByteBoard controlMap = new ByteBoard();
