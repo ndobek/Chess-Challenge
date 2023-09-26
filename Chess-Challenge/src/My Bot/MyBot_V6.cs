@@ -1,11 +1,11 @@
 ﻿//Allowed Namespaces
 using ChessChallenge.API;
-using System;
+using System; //Debug Only
 //using System.Numerics;
 using System.Collections.Generic;
 //using System.Linq;
 
-public class MyBot : IChessBot
+public class MyBot_V6 : IChessBot
 {
     //Control Maps
     public ByteBoard controlMap = new ByteBoard();
@@ -17,9 +17,9 @@ public class MyBot : IChessBot
 
     //Values given to various board conditions
     //float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 4, 4 }; //For when the code controlling the squares a king can move to is activated
-    float[] pieceControlValues = { 0, 100, 300, 300, 500, 900, 40};
+    float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 4};
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
-    float pawnRankMod = 20;
+    float pawnRankMod = 2;
 
     float turnTime;
     Timer _timer;
@@ -29,17 +29,10 @@ public class MyBot : IChessBot
     {
         playerIsWhite = board.IsWhiteToMove;
         _timer = timer;
-        int numberOfPieces = 0;
-        foreach (PieceList piece in board.GetAllPieceLists())
-        {
-            numberOfPieces += piece.Count;
-        }
-
-
-        turnTime = timer.MillisecondsRemaining / (5*numberOfPieces);
+        turnTime = timer.MillisecondsRemaining / 50;
         if(timer.MillisecondsRemaining < 2000) turnTime = 0;
         //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 3, 3, out float notUsed); ;
+        return MoveSort(board, 3 + board.PlyCount / 30, 3 + (int)(GetMaterialScore(board)/250), out float notUsed);
     }
 
     #region Search 
@@ -49,7 +42,7 @@ public class MyBot : IChessBot
     {
         Dictionary<Move, float> moveValues = new Dictionary<Move, float>();
         Move[] moves = board.GetLegalMoves();
-        moveValues.Add(Move.NullMove, board.IsWhiteToMove ? float.MinValue : float.MaxValue);
+        moveValues.Add(Move.NullMove, board.IsWhiteToMove ? int.MinValue : int.MaxValue);
 
         //Get Initial Value for each move
         foreach (Move move in moves)
@@ -61,7 +54,7 @@ public class MyBot : IChessBot
 
             string fen = board.GetFenString();
 
-            float moveScore = 0;
+            float moveScore;
             if (board.IsInCheckmate()) { moveScore = board.IsWhiteToMove ? int.MinValue : int.MaxValue; }//Swapped because move will be undone.
             else if (board.IsDraw()) moveScore = 0;
             else if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) moveScore = board.IsWhiteToMove ? int.MaxValue : int.MinValue;
@@ -90,31 +83,32 @@ public class MyBot : IChessBot
 
                 #endregion
 
-                //ulong kingBitBoard = BitboardHelper.GetKingAttacks(board.GetKingSquare(!board.IsWhiteToMove)); //Controlling the squares where the king wants to move, not as helpful as i thought it would be
+                float moveScoreResult = 0;
+                ulong kingBitBoard = BitboardHelper.GetKingAttacks(board.GetKingSquare(!board.IsWhiteToMove));
                 ByteBoard playerToMoveControlMap = board.IsWhiteToMove ? whiteControlMap : blackControlMap;
 
                 LoopBoard((int i, int j) => {
                     Piece piece = board.GetPiece(new Square(i, j));
                     ByteBoard enemyControlMap = piece.IsWhite ? blackControlMap : whiteControlMap;
-                    if (enemyControlMap.GetSquareValue(piece.Square) != 0) moveScore += pieceControlValues[(int)piece.PieceType] * controlMap.SquareSign(piece.Square);
+                    if (enemyControlMap.GetSquareValue(piece.Square) != 0) moveScoreResult += pieceControlValues[(int)piece.PieceType] * controlMap.SquareSign(piece.Square);
 
                     //Controlling the squares where the king wants to move, not as helpful as i thought it would be
                     //if (BitboardHelper.SquareIsSet(kingBitBoard, piece.Square) && playerToMoveControlMap.GetSquareValue(piece.Square) != 0)
                     //{
-                    //    moveScore += pieceControlValues[7] * (board.IsWhiteToMove ? 1 : -1);
+                    //    moveScoreResult += pieceControlValues[7] * (board.IsWhiteToMove ? 1 : -1);
                     //}
 
-                    moveScore += (emptyControlValues[i] + emptyControlValues[j]) * controlMap.SquareSign(piece.Square);
+                    moveScoreResult += (emptyControlValues[i] + emptyControlValues[j]) * controlMap.SquareSign(piece.Square);
 
                     if (piece.IsPawn)
                     {
-                        if (piece.IsWhite) moveScore += piece.Square.Rank * pawnRankMod;
-                        else moveScore -= (9 - piece.Square.Rank) * pawnRankMod;
+                        if (piece.IsWhite) moveScoreResult += piece.Square.Rank * pawnRankMod;
+                        else moveScoreResult -= (9 - piece.Square.Rank) * pawnRankMod;
                     }
                 });
 
-                moveScore += GetMaterialScore(board);
-
+                moveScoreResult += GetMaterialScore(board);
+                moveScore = moveScoreResult;
                 #endregion 
             }
 
@@ -141,7 +135,6 @@ public class MyBot : IChessBot
                 float newScore;
                 MoveSort(board, turnsAhead - 1, maxSearchWidth, out newScore);
                 moveValues[moveToCheck] = newScore;
-                positionValue[board.GetFenString()] = newScore;
                 board.UndoMove(moveToCheck);
             }
 
@@ -244,9 +237,9 @@ public class MyBot : IChessBot
         {
             foreach (Move move in moveValues.Keys)
             {
-                if (!checkedMoves.Contains(move) &&(
+                if (!checkedMoves.Contains(move) &&
                     (board.IsWhiteToMove && moveValues[move] >= moveValues[highestValueUncheckedMove]) ||
-                    (!board.IsWhiteToMove && moveValues[move] <= moveValues[highestValueUncheckedMove])))
+                    (!board.IsWhiteToMove && moveValues[move] <= moveValues[highestValueUncheckedMove]))
                 {
                     highestValueUncheckedMove = move;
                 }
