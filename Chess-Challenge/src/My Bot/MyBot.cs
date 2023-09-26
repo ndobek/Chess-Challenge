@@ -13,12 +13,14 @@ public class MyBot : IChessBot
     public ByteBoard blackControlMap = new ByteBoard();
 
     Dictionary<string, float> positionValue = new Dictionary<string, float>();
+    Queue<string> positionQueue = new Queue<string>();
+    int maxStoredPositions = 100;
     bool playerIsWhite;
 
 
     //Values given to various board conditions
     float[] materialValues = { 10, 30, 90, 90, 150, 270, 0 };
-    float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 0, 0 };
+    float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 4, 4 };
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
     float pawnRankMod = 2;
 
@@ -27,7 +29,7 @@ public class MyBot : IChessBot
     {
         playerIsWhite = board.IsWhiteToMove;
         //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 3, 3, out float notUsed, timer, timer.MillisecondsRemaining / 40);
+        return MoveSort(board, 3 + board.PlyCount / 30, 3 + (int)(GetMaterialScore(board)/250), out float notUsed, timer, timer.MillisecondsRemaining / 50); ;
     }
 
     #region Search 
@@ -52,6 +54,7 @@ public class MyBot : IChessBot
         {
             for (int i = 0; i < maxSearchWidth; i++)
             {
+                if (timer.MillisecondsElapsedThisTurn >= turnTime && board.IsWhiteToMove != playerIsWhite) break;
                 Move moveToCheck = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
                 board.MakeMove(moveToCheck);
                 float newScore;
@@ -85,7 +88,12 @@ public class MyBot : IChessBot
         else if (board.IsDraw()) moveScore = 0;
         else if (move.IsPromotion && move.PromotionPieceType != PieceType.Queen) moveScore = board.IsWhiteToMove ? int.MaxValue : int.MinValue;
         else if (positionValue.ContainsKey(fen)) moveScore = positionValue[fen];
-        else moveScore = GetControlScore(board);
+        else
+        {
+            positionQueue.Enqueue(fen);
+            moveScore = GetControlScore(board);
+            if(positionQueue.Count > maxStoredPositions)positionQueue.Dequeue();
+        }
 
 
         board.UndoMove(move);
