@@ -17,7 +17,7 @@ public class MyBot_V7 : IChessBot
 
     //Values given to various board conditions
     //float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 4, 4 }; //For when the code controlling the squares a king can move to is activated
-    float[] pieceControlValues = { 0, 100, 300, 300, 500, 900, 40};
+    float[] pieceControlValues = { 0, 100, 300, 300, 500, 900, 40 };
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
     float pawnRankMod = 20;
 
@@ -36,10 +36,10 @@ public class MyBot_V7 : IChessBot
         }
 
 
-        turnTime = timer.MillisecondsRemaining / (5*numberOfPieces);
-        if(timer.MillisecondsRemaining < 2000) turnTime = 0;
+        turnTime = timer.MillisecondsRemaining / (5 * numberOfPieces);
+        if (timer.MillisecondsRemaining < 2000) turnTime = 0;
         //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 3, 3, out float notUsed); ;
+        return MoveSort(board, 3, 10, out float notUsed);
     }
 
     #region Search 
@@ -113,9 +113,16 @@ public class MyBot_V7 : IChessBot
                     }
                 });
 
-                moveScore += GetMaterialScore(board);
+                #region Get Material Score
 
-                #endregion 
+                foreach (PieceList piece in board.GetAllPieceLists())
+                {
+                    moveScore += piece.Count * pieceControlValues[(int)piece.TypeOfPieceInList] * (piece.IsWhitePieceList ? 3 : -3);//An actual material gain is given 3 times as much value as controlling a piece
+                }
+
+                #endregion
+
+                #endregion
             }
 
 
@@ -145,26 +152,11 @@ public class MyBot_V7 : IChessBot
                 board.UndoMove(moveToCheck);
             }
 
-            checkedMoves = new List<Move>   { Move.NullMove };
+            checkedMoves = new List<Move> { Move.NullMove };
         }
 
         Move result = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
         score = moveValues[result];
-        return result;
-    }
-
-
-    #endregion
-
-    #region Evaluate
-
-    public float GetMaterialScore(Board board)
-    {
-        float result = 0;
-        foreach (PieceList piece in board.GetAllPieceLists())
-        {
-            result += piece.Count * pieceControlValues[(int)piece.TypeOfPieceInList] * (piece.IsWhitePieceList ? 3 : -3);//An actual material gain is given 3 times as much value as controlling a piece
-        }
         return result;
     }
 
@@ -244,7 +236,7 @@ public class MyBot_V7 : IChessBot
         {
             foreach (Move move in moveValues.Keys)
             {
-                if (!checkedMoves.Contains(move) &&(
+                if (!checkedMoves.Contains(move) && (
                     (board.IsWhiteToMove && moveValues[move] >= moveValues[highestValueUncheckedMove]) ||
                     (!board.IsWhiteToMove && moveValues[move] <= moveValues[highestValueUncheckedMove])))
                 {

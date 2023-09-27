@@ -1,4 +1,11 @@
-﻿//Allowed Namespaces
+﻿//////////////////////
+//Nathaniel's Chessbot
+//
+//This monstrosity hypothetically gives each board state a score based on how many pieces are within both teams theatened areas.
+//There's definetly some kinks that I would love to come back and iron out in a future version.
+//
+///////////////////////
+//Allowed Namespaces
 using ChessChallenge.API;
 using System;
 //using System.Numerics;
@@ -12,44 +19,51 @@ public class MyBot : IChessBot
     public ByteBoard whiteControlMap = new ByteBoard();
     public ByteBoard blackControlMap = new ByteBoard();
 
-
     Dictionary<string, float> positionValue = new Dictionary<string, float>();
 
     //Values given to various board conditions
-    //float[] pieceControlValues = { 0, 10, 30, 30, 50, 90, 4, 4 }; //For when the code controlling the squares a king can move to is activated
     float[] pieceControlValues = { 0, 100, 300, 300, 500, 900, 40};
     float[] emptyControlValues = { 1, 2, 3, 4, 4, 3, 2, 1 };
     float pawnRankMod = 20;
 
+    //Game states that are referenced often
     float turnTime;
     Timer _timer;
     bool playerIsWhite;
+    int maxSearchWidth;
 
     public Move Think(Board board, Timer timer)
     {
         playerIsWhite = board.IsWhiteToMove;
         _timer = timer;
-        int numberOfPieces = 0;
+
+
+        //Number of pieces remaining is used to determine how much time to spend searching. It needs to be searching more in the late game
+        float percentOfPiecesRemaining = 0;
         foreach (PieceList piece in board.GetAllPieceLists())
         {
-            numberOfPieces += piece.Count;
+            percentOfPiecesRemaining += piece.Count;
         }
+        percentOfPiecesRemaining /= 32;
+        float percentOfPiecesCaptured = 1 - percentOfPiecesRemaining;
 
 
-        turnTime = timer.MillisecondsRemaining / (5*numberOfPieces);
+        turnTime = timer.MillisecondsRemaining / ((40* percentOfPiecesRemaining) + 10);
         if(timer.MillisecondsRemaining < 2000) turnTime = 0;
-        //DEBUG_DisplayControlMaps(board);
-        return MoveSort(board, 3, 3, out float notUsed); ;
+        maxSearchWidth = 10 + (int)(10 * percentOfPiecesCaptured);
+
+
+        return MoveSort(board, 3 + (int)(3 * percentOfPiecesCaptured), out float notUsed);
     }
 
-    #region Search 
+    #region Search & Evaluate
 
 
-    public Move MoveSort(Board board, int turnsAhead, int maxSearchWidth, out float score)
+    public Move MoveSort(Board board, int turnsAhead, out float score)
     {
         Dictionary<Move, float> moveValues = new Dictionary<Move, float>();
         Move[] moves = board.GetLegalMoves();
-        moveValues.Add(Move.NullMove, board.IsWhiteToMove ? float.MinValue : float.MaxValue);
+        moveValues.Add(Move.NullMove, board.IsWhiteToMove ? float.MinValue : float.MaxValue);//Just to compare against. Saves some brain capacity
 
         //Get Initial Value for each move
         foreach (Move move in moves)
@@ -69,8 +83,8 @@ public class MyBot : IChessBot
             else
             {
                 #region Get Control Score
-                #region Build Control Map
-
+                #region Build Control Maps
+                
                 PieceList[] pieces = board.GetAllPieceLists();
                 controlMap = new ByteBoard();
                 whiteControlMap = new ByteBoard();
@@ -84,25 +98,20 @@ public class MyBot : IChessBot
                     }
                 }
 
+                //The player who's turn it is is given an extra point of control
                 if (board.IsWhiteToMove) whiteControlMap.AddBitBoard(whiteControlMap.MapOfControlledSquares());
                 else blackControlMap.AddBitBoard(blackControlMap.MapOfControlledSquares(), -1);
+
                 controlMap = whiteControlMap + blackControlMap;
 
                 #endregion
 
-                //ulong kingBitBoard = BitboardHelper.GetKingAttacks(board.GetKingSquare(!board.IsWhiteToMove)); //Controlling the squares where the king wants to move, not as helpful as i thought it would be
                 ByteBoard playerToMoveControlMap = board.IsWhiteToMove ? whiteControlMap : blackControlMap;
 
                 LoopBoard((int i, int j) => {
                     Piece piece = board.GetPiece(new Square(i, j));
                     ByteBoard enemyControlMap = piece.IsWhite ? blackControlMap : whiteControlMap;
-                    if (enemyControlMap.GetSquareValue(piece.Square) != 0) moveScore += pieceControlValues[(int)piece.PieceType] * controlMap.SquareSign(piece.Square);
-
-                    //Controlling the squares where the king wants to move, not as helpful as i thought it would be
-                    //if (BitboardHelper.SquareIsSet(kingBitBoard, piece.Square) && playerToMoveControlMap.GetSquareValue(piece.Square) != 0)
-                    //{
-                    //    moveScore += pieceControlValues[7] * (board.IsWhiteToMove ? 1 : -1);
-                    //}
+                    if (enemyControlMap.byteBoard[piece.Square.File, piece.Square.Rank] != 0) moveScore += pieceControlValues[(int)piece.PieceType] * controlMap.SquareSign(piece.Square);
 
                     moveScore += (emptyControlValues[i] + emptyControlValues[j]) * controlMap.SquareSign(piece.Square);
 
@@ -113,9 +122,16 @@ public class MyBot : IChessBot
                     }
                 });
 
-                moveScore += GetMaterialScore(board);
+                #region Get Material Score
 
-                #endregion 
+                foreach (PieceList piece in board.GetAllPieceLists())
+                {
+                    moveScore += piece.Count * pieceControlValues[(int)piece.TypeOfPieceInList] * (piece.IsWhitePieceList ? 3 : -3);//An actual material gain is given 3 times as much value as controlling a piece
+                }
+
+                #endregion
+
+                #endregion
             }
 
 
@@ -133,38 +149,30 @@ public class MyBot : IChessBot
 
         if (turnsAhead > 0)
         {
+            #region Evaluate Future Turns
+
             for (int i = 0; i < maxSearchWidth; i++)
             {
-                if (_timer.MillisecondsElapsedThisTurn >= turnTime && board.IsWhiteToMove != playerIsWhite) break;
+                if (_timer.MillisecondsElapsedThisTurn >= turnTime && board.IsWhiteToMove != playerIsWhite) break; //Exit early if there's no time, but make sure all searches end on the same color so we can compare apples to apples
+
                 Move moveToCheck = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
                 board.MakeMove(moveToCheck);
+
                 float newScore;
-                MoveSort(board, turnsAhead - 1, maxSearchWidth, out newScore);
+                MoveSort(board, turnsAhead - 1, out newScore);
                 moveValues[moveToCheck] = newScore;
                 positionValue[board.GetFenString()] = newScore;
+
                 board.UndoMove(moveToCheck);
             }
 
-            checkedMoves = new List<Move>   { Move.NullMove };
+            #endregion
+
+            checkedMoves = new List<Move>   { Move.NullMove }; //Refresh checked moves so I can use the same function to get the final result
         }
 
         Move result = HighestValueUncheckedMove(ref moveValues, ref checkedMoves, board);
         score = moveValues[result];
-        return result;
-    }
-
-
-    #endregion
-
-    #region Evaluate
-
-    public float GetMaterialScore(Board board)
-    {
-        float result = 0;
-        foreach (PieceList piece in board.GetAllPieceLists())
-        {
-            result += piece.Count * pieceControlValues[(int)piece.TypeOfPieceInList] * (piece.IsWhitePieceList ? 3 : -3);//An actual material gain is given 3 times as much value as controlling a piece
-        }
         return result;
     }
 
@@ -182,19 +190,6 @@ public class MyBot : IChessBot
                 byteBoard[i, j] += BitboardHelper.SquareIsSet(bitBoard, new Square(i, j)) ? value : 0;
             });
         }
-
-        public int GetSquareValue(Square square)
-        {
-            return byteBoard[square.File, square.Rank];
-        }
-        //public static ByteBoard operator -(ByteBoard left, ByteBoard right)
-        //{
-        //    ByteBoard result = new ByteBoard();
-        //    LoopBoard((int i, int j) => {
-        //        result.byteBoard[i, j] =  (left.byteBoard[i, j] - right.byteBoard[i, j]);
-        //    });
-        //    return result;
-        //}
         public static ByteBoard operator +(ByteBoard left, ByteBoard right)
         {
             ByteBoard result = new ByteBoard();
@@ -203,10 +198,6 @@ public class MyBot : IChessBot
             });
             return result;
         }
-        //public int SquareSign(int file, int rank)
-        //{
-        //    return Math.Clamp(byteBoard[file, rank],  -1,  1);
-        //}
         public int SquareSign(Square square)
         {
             return Math.Clamp(byteBoard[square.File, square.Rank], -1, 1);
