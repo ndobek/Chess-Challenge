@@ -48,7 +48,7 @@ public class MyBot : IChessBot
         float percentOfPiecesCaptured = 1 - percentOfPiecesRemaining;
 
 
-        turnTime = timer.MillisecondsRemaining / ((40* percentOfPiecesRemaining) + 10);
+        turnTime = timer.MillisecondsRemaining / ((40* percentOfPiecesRemaining) + 20);
         if(timer.MillisecondsRemaining < 2000) turnTime = 0;
         maxSearchWidth = 10 + (int)(10 * percentOfPiecesCaptured);
 
